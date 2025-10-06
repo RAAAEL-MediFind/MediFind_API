@@ -3,3 +3,6 @@ pymongo
 python-dotenv
 python-multipart
 cloudinary
+bcrypt
+pyjwt
+

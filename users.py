@@ -44,6 +44,7 @@ def register_users(
     digital_address: Annotated[str | None, Form()] = None,
     latitude: Annotated[float | None, Form()] = None,
     longitude: Annotated[float | None, Form()] = None,
+    license_number: Annotated[str | None, Form()] = None,
 ):
     # ensure user does not exist in db
     user_count = users_collection.count_documents(filter={"email": email})
@@ -80,6 +81,7 @@ def register_users(
                 "flyer": upload_result["secure_url"],
                 "digital_address": digital_address,
                 "gps_location": {"lat": latitude, "lon": longitude},
+                "license_number": license_number,
                 "created_at": datetime.now(tz=timezone.utc),
             }
         )

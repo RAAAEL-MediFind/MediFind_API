@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from routes.users import users_router
 from routes.admin import admin_router
 from routes.meds import inventory_router
+from routes.search import search_router
 import cloudinary
 import os
 from dotenv import load_dotenv
@@ -27,3 +28,4 @@ def read_root():
 app.include_router(users_router)
 app.include_router(admin_router)
 app.include_router(inventory_router)
+app.include_router(search_router)

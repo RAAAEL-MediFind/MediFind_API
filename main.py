@@ -16,7 +16,17 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
 )
 
-app = FastAPI()
+app = FastAPI(
+    title="RAAAEL MediFind Web App",
+    description="A comprehensive advertisement and medicine management app that connects patients and pharmacies",
+    version="1.0.0",
+    contact={
+        "name": "RAAAEL CODE TEAM",
+        "url": "https://github.com/orgs/RAAAEL-MediFind/repositories",
+        "admin": "awudiakorfa2@gmail.com",
+        "lead": "dojale007@gmail.com",
+    },
+)
 
 
 @app.get("/")

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from routes.users import users_router
 from routes.admin import admin_router
 from routes.meds import inventory_router
+from routes.search import search_router
 import cloudinary
 import os
 from dotenv import load_dotenv
@@ -15,7 +16,17 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
 )
 
-app = FastAPI()
+app = FastAPI(
+    title="RAAAEL MediFind Web App",
+    description="A comprehensive advertisement and medicine management app that connects patients and pharmacies",
+    version="1.0.0",
+    contact={
+        "name": "RAAAEL CODE TEAM",
+        "url": "https://github.com/orgs/RAAAEL-MediFind/repositories",
+        "admin": "awudiakorfa2@gmail.com",
+        "lead": "dojale007@gmail.com",
+    },
+)
 
 
 @app.get("/")
@@ -27,3 +38,4 @@ def read_root():
 app.include_router(users_router)
 app.include_router(admin_router)
 app.include_router(inventory_router)
+app.include_router(search_router)

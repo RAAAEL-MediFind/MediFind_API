@@ -1,16 +1,29 @@
-from fastapi import APIRouter, HTTPException, status
-from db import med_inventory_collection, pharmacies_collection
+from fastapi import APIRouter, HTTPException, status, Depends
+from db import med_inventory_collection, pharmacies_collection, user_history_collection
 from bson import ObjectId
+from dependencies.authn import is_authenticated
+from datetime import datetime, timezone
+
 
 search_router = APIRouter(tags=["Search"], prefix="/search")
 
 
 @search_router.get("/medicine")
-def search_medicine(query: str = ""):
+def search_medicine(query: str = "", user_id: str = Depends(is_authenticated)):
     if not query:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Search query cannot be empty. Please provide a medicine name.",
+        )
+    
+    # Log search for authenticated users
+    if user_id:
+        user_history_collection.insert_one(
+            {
+                "user_id": ObjectId(user_id),
+                "search_query": query,
+                "searched_at": datetime.now(tz=timezone.utc),
+            }
         )
 
     # Find matching medicines in inventory

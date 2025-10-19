@@ -55,3 +55,4 @@ def clear_user_history(user_id: Annotated[str, Depends(is_authenticated)]):
         "deleted_count": result.deleted_count,
         "message": "User history cleared successfully",
     }
+

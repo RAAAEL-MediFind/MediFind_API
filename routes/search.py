@@ -110,3 +110,4 @@ def get_all_medicines():
         "data": med_list,
         "message": f"Fetched {len(med_list)} medicines successfully.",
     }
+

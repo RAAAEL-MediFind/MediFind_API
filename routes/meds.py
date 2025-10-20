@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, APIRouter, Depends, File, UploadFile, Form
-from db import med_inventory_collection, pharmacies_collection
+from db import med_inventory_collection, users_collection
 from bson.objectid import ObjectId
 from utils import replace_mongo_id
 from typing import Annotated, Optional
@@ -23,7 +23,9 @@ def get_my_stock(
     skip: int = 0,
 ):
     # Get pharmacy_id from user
-    pharmacy_doc = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    pharmacy_doc = users_collection.find_one(
+        {"_id": ObjectId(user_id), "role": "pharmacy"}
+    )
     if not pharmacy_doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pharmacy not found!")
 
@@ -55,11 +57,13 @@ def add_medicine(
     description: Annotated[str, Form()],
     category: Annotated[str, Form()],
     user_id: Annotated[str, Depends(is_authenticated)],
+    flyer: Annotated[Optional[UploadFile], File],
     _=Depends(has_roles(["pharmacy"])),
-    flyer: Annotated[Optional[UploadFile], File()] = None,
 ):
     # Get pharmacy_id from user
-    pharmacy_doc = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    pharmacy_doc = users_collection.find_one(
+        {"_id": ObjectId(user_id), "role": "pharmacy"}
+    )
     if not pharmacy_doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pharmacy not found!")
 
@@ -114,7 +118,9 @@ def get_medicine_by_id(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid mongo id received!"
         )
     # Get pharmacy_id
-    pharmacy_doc = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    pharmacy_doc = users_collection.find_one(
+        {"_id": ObjectId(user_id), "role": "pharmacy"}
+    )
     if not pharmacy_doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pharmacy not found!")
     # Get medicine from database by id
@@ -147,7 +153,9 @@ def update_medicine(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid mongo id received!"
         )
     # Get pharmacy_id
-    pharmacy_doc = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    pharmacy_doc = users_collection.find_one(
+        {"_id": ObjectId(user_id), "role": "pharmacy"}
+    )
     if not pharmacy_doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pharmacy not found!")
 
@@ -189,7 +197,9 @@ def delete_medicine(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid mongo id received!"
         )
     # Get pharmacy_id
-    pharmacy_doc = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    pharmacy_doc = users_collection.find_one(
+        {"_id": ObjectId(user_id), "role": "pharmacy"}
+    )
     if not pharmacy_doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pharmacy not found!")
     # Delete medicine from database

@@ -39,11 +39,17 @@ def send_message(
 # 2. Pharmacy Inbox (view messages sent to them)
 @messages_router.get("/inbox")
 def get_pharmacy_messages(
-    pharmacy_id: Annotated[str, Depends(is_authenticated)],
+    user_id: Annotated[str, Depends(is_authenticated)],
     _: Annotated[None, Depends(has_roles(["pharmacy"]))],
 ):
     """Get all messages sent to the pharmacy."""
-    messages = list(messages_collection.find({"pharmacy_id": ObjectId(pharmacy_id)}))
+    # Find the pharmacy linked to the authenticated user
+    pharmacy = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    if not pharmacy:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+
+    # Fetch messages sent to that pharmacy
+    messages = list(messages_collection.find({"pharmacy_id": pharmacy["_id"]}))
     if not messages:
         raise HTTPException(status_code=404, detail="No messages found")
 
@@ -55,7 +61,7 @@ def get_pharmacy_messages(
                 "message_id": str(msg["_id"]),
                 "subject": msg["subject"],
                 "message": msg["message"],
-                "sender_name": user.get("name") if user else "Unknown",
+                "sender_name": user.get("username") if user else "Unknown",
                 "sent_at": msg["sent_at"].isoformat(),
                 "is_read": msg.get("is_read", False),
             }
@@ -68,12 +74,18 @@ def get_pharmacy_messages(
 @messages_router.patch("/{message_id}/read")
 def mark_message_as_read(
     message_id: str,
-    pharmacy_id: Annotated[str, Depends(is_authenticated)],
+    user_id: Annotated[str, Depends(is_authenticated)],
     _: Annotated[None, Depends(has_roles(["pharmacy"]))],
 ):
     """Mark a message as read by pharmacy."""
+    # Find pharmacy linked to this user
+    pharmacy = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    if not pharmacy:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+
+    # Update the message for this pharmacy
     result = messages_collection.update_one(
-        {"_id": ObjectId(message_id), "pharmacy_id": ObjectId(pharmacy_id)},
+        {"_id": ObjectId(message_id), "pharmacy_id": pharmacy["_id"]},
         {"$set": {"is_read": True}},
     )
 
@@ -101,7 +113,9 @@ def get_user_sent_messages(
                 "message_id": str(msg["_id"]),
                 "subject": msg["subject"],
                 "message": msg["message"],
-                "pharmacy_name": pharmacy.get("name") if pharmacy else "Unknown",
+                "pharmacy_name": (
+                    pharmacy.get("pharmacy_name") if pharmacy else "Unknown"
+                ),
                 "sent_at": msg["sent_at"].isoformat(),
                 "is_read": msg.get("is_read", False),
             }

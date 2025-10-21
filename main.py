@@ -4,6 +4,12 @@ from routes.admin import admin_router
 from routes.meds import inventory_router
 from routes.search import search_router
 from routes.public import public_router
+from routes.cart import cart_router
+from routes.count import count_router
+from routes.prescriptions import prescription_router
+from routes.messages import messages_router
+from routes.profiles import profile_router
+
 import cloudinary
 import os
 from dotenv import load_dotenv
@@ -41,3 +47,10 @@ app.include_router(admin_router)
 app.include_router(inventory_router)
 app.include_router(search_router)
 app.include_router(public_router)
+# Add other routers as needed
+app.include_router(profile_router)
+app.include_router(cart_router)
+app.include_router(count_router)
+app.include_router(prescription_router)
+
+

@@ -9,6 +9,7 @@ from routes.count import count_router
 from routes.prescriptions import prescription_router
 from routes.messages import messages_router
 from routes.profiles import profile_router
+from routes.saved_pharms import saved_router
 
 import cloudinary
 import os
@@ -52,5 +53,7 @@ app.include_router(profile_router)
 app.include_router(cart_router)
 app.include_router(count_router)
 app.include_router(prescription_router)
+app.include_router(saved_router)
+app.include_router(messages_router)
 
 

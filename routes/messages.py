@@ -64,6 +64,8 @@ def get_pharmacy_messages(
                 "sender_name": user.get("username") if user else "Unknown",
                 "sent_at": msg["sent_at"].isoformat(),
                 "is_read": msg.get("is_read", False),
+                "phone": user.get("phone"),
+                "email": user.get("email"),
             }
         )
 

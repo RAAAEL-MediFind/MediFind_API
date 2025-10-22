@@ -1,22 +1,32 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, status, File, UploadFile
 from typing import Annotated
 from bson import ObjectId
 from datetime import datetime, timezone
 from db import messages_collection, pharmacies_collection, users_collection
 from dependencies.authn import is_authenticated
 from dependencies.authz import has_roles
+import cloudinary.uploader
+from typing import Optional
 
 messages_router = APIRouter(tags=["Messaging"], prefix="/messages")
-
 
 # 1. Send Message (User → Pharmacy)
 @messages_router.post("/send")
 def send_message(
+    user_id: Annotated[str, Depends(is_authenticated)],    
     pharmacy_id: Annotated[str, Form(...)],
     subject: Annotated[str, Form(...)],
     message: Annotated[str, Form(...)],
-    user_id: Annotated[str, Depends(is_authenticated)],
+    # optional: allow uploading a prescription as message attachment
+    flyer: Annotated[Optional[UploadFile], File()] = None,
 ):
+    # Upload medicine_image to cloudinary if provided
+    image_url = None
+    if flyer:
+        upload_result = cloudinary.uploader.upload(flyer.file)
+        image_url = upload_result["secure_url"]
+        print(upload_result)
+
     """Allow user to send a message to a pharmacy."""
     pharmacy = pharmacies_collection.find_one({"_id": ObjectId(pharmacy_id)})
     if not pharmacy:
@@ -30,6 +40,7 @@ def send_message(
             "message": message,
             "sent_at": datetime.now(tz=timezone.utc),
             "is_read": False,
+            "flyer": image_url,
         }
     )
 
@@ -62,6 +73,7 @@ def get_pharmacy_messages(
                 "subject": msg["subject"],
                 "message": msg["message"],
                 "sender_name": user.get("username") if user else "Unknown",
+                "sender_phone": user.get("phone") if user else "Unknown",
                 "sent_at": msg["sent_at"].isoformat(),
                 "is_read": msg.get("is_read", False),
             }
@@ -83,7 +95,7 @@ def mark_message_as_read(
     if not pharmacy:
         raise HTTPException(status_code=404, detail="Pharmacy not found")
 
-    # Update the message for this pharmacy2
+    # Update the message for this pharmacy
     result = messages_collection.update_one(
         {"_id": ObjectId(message_id), "pharmacy_id": pharmacy["_id"]},
         {"$set": {"is_read": True}},

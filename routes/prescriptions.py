@@ -3,21 +3,24 @@ from typing import Annotated, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
 import cloudinary.uploader
-from db import prescriptions_collection
+from db import prescriptions_collection, pharmacies_collection
 from dependencies.authn import is_authenticated
+from dependencies.authz import has_roles
 
 prescription_router = APIRouter(tags=["Prescription"], prefix="/prescriptions")
 
 
-@prescription_router.post("/upload")
-def upload_prescription(
+# 1️ Upload and send prescription (User → Pharmacy)
+@prescription_router.post("/send")
+def send_prescription_to_pharmacy(
     user_id: Annotated[str, Depends(is_authenticated)],
+    pharmacy_id: Annotated[str, Form(...)],
     title: Annotated[str, Form(...)],
     file: Annotated[UploadFile, File(...)],
-    notes: Annotated[Optional[str], Form()]=None,
+    notes: Annotated[Optional[str], Form()] = None,
 ):
     """
-    Upload a prescription (image or PDF) for the authenticated user.
+    Upload and send a prescription (image or PDF) to a selected pharmacy.
     """
     # Validate file type
     allowed_types = ["image/jpeg", "image/png", "application/pdf"]
@@ -27,61 +30,109 @@ def upload_prescription(
             detail="Invalid file type. Only JPG, PNG, or PDF are allowed.",
         )
 
-    # Upload to Cloudinary or store file info (use local later if preferred)
+    # Check if pharmacy exists
+    pharmacy = pharmacies_collection.find_one({"_id": ObjectId(pharmacy_id)})
+    if not pharmacy:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+
+    # Upload to Cloudinary
     upload_result = cloudinary.uploader.upload(file.file)
     file_url = upload_result["secure_url"]
 
     # Save in MongoDB
     prescription_doc = {
         "user_id": ObjectId(user_id),
+        "pharmacy_id": ObjectId(pharmacy_id),
         "title": title,
         "notes": notes,
         "file_url": file_url,
         "uploaded_at": datetime.now(tz=timezone.utc),
+        "is_read": False,
     }
     prescriptions_collection.insert_one(prescription_doc)
 
-    return {"message": "Prescription uploaded successfully", "file_url": file_url}
+    return {
+        "message": "Prescription sent successfully to pharmacy",
+        "file_url": file_url,
+    }
 
 
+# 2️ Get prescriptions sent by the authenticated user
 @prescription_router.get("/my-prescriptions")
 def get_user_prescriptions(user_id: Annotated[str, Depends(is_authenticated)]):
     """
-    Get all prescriptions uploaded by the authenticated user.
+    Get all prescriptions uploaded/sent by the authenticated user.
     """
-    prescriptions = list(
-        prescriptions_collection.find({"user_id": ObjectId(user_id)})
-    )
+    prescriptions = list(prescriptions_collection.find({"user_id": ObjectId(user_id)}))
 
     if not prescriptions:
         raise HTTPException(status_code=404, detail="No prescriptions found")
 
+    result = []
     for p in prescriptions:
-        p["_id"] = str(p["_id"])
-        p["user_id"] = str(p["user_id"])
-        p["uploaded_at"] = p["uploaded_at"].isoformat()
+        result.append({
+            "prescription_id": str(p["_id"]),
+            "title": p["title"],
+            "notes": p.get("notes"),
+            "file_url": p["file_url"],
+            "uploaded_at": p["uploaded_at"].isoformat(),
+            "is_read": p.get("is_read", False),
+        })
 
-    return {"prescriptions": prescriptions}
+    return {"prescriptions": result}
 
-# 
-# Get a specific prescription by ID
-@prescription_router.get("/{prescription_id}")
-def get_prescription_by_id(
-    prescription_id: str,
+
+# 3️ Pharmacy Inbox — View prescriptions sent to them
+@prescription_router.get("/inbox/pharmacy")
+def get_pharmacy_prescriptions(
     user_id: Annotated[str, Depends(is_authenticated)],
+    _: Annotated[None, Depends(has_roles(["pharmacy"]))],
 ):
     """
-    Get a specific prescription by its ID for the authenticated user.
+    Pharmacy can view prescriptions sent to them by users.
     """
-    prescription = prescriptions_collection.find_one(
-        {"_id": ObjectId(prescription_id), "user_id": ObjectId(user_id)}
+    pharmacy = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    if not pharmacy:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+
+    prescriptions = list(prescriptions_collection.find({"pharmacy_id": pharmacy["_id"]}))
+    if not prescriptions:
+        raise HTTPException(status_code=404, detail="No prescriptions found")
+
+    result = []
+    for p in prescriptions:
+        result.append({
+            "prescription_id": str(p["_id"]),
+            "title": p["title"],
+            "notes": p.get("notes"),
+            "file_url": p["file_url"],
+            "uploaded_at": p["uploaded_at"].isoformat(),
+            "is_read": p.get("is_read", False),
+        })
+
+    return {"inbox": result}
+
+
+# 4️ Pharmacy marks prescription as viewed/read
+@prescription_router.patch("/{prescription_id}/read")
+def mark_prescription_as_read(
+    prescription_id: str,
+    user_id: Annotated[str, Depends(is_authenticated)],
+    _: Annotated[None, Depends(has_roles(["pharmacy"]))],
+):
+    """
+    Mark a prescription as read/viewed by the pharmacy.
+    """
+    pharmacy = pharmacies_collection.find_one({"user_id": ObjectId(user_id)})
+    if not pharmacy:
+        raise HTTPException(status_code=404, detail="Pharmacy not found")
+
+    result = prescriptions_collection.update_one(
+        {"_id": ObjectId(prescription_id), "pharmacy_id": pharmacy["_id"]},
+        {"$set": {"is_read": True}},
     )
 
-    if not prescription:
-        raise HTTPException(status_code=404, detail="Prescription not found")
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Prescription not found or already marked read")
 
-    prescription["_id"] = str(prescription["_id"])
-    prescription["user_id"] = str(prescription["user_id"])
-    prescription["uploaded_at"] = prescription["uploaded_at"].isoformat()
-
-    return {"prescription": prescription}
+    return {"message": "Prescription marked as read"}
